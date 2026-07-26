@@ -28,7 +28,7 @@ ui <- fluidPage(
       helpText("Ensure that the CSV file contains the columns 'log2FoldChange' and 'pvalue'."),
       radioButtons("mode", "Filter mode:",
                    choices = c("Thresholds" = "threshold",
-                               "Largest values" = "largest"),
+                               "Top values" = "top"),
                    selected = "threshold"),
       conditionalPanel(
         condition = "input.mode == 'threshold'",
@@ -36,9 +36,9 @@ ui <- fluidPage(
         uiOutput("threshold_p")
       ),
       conditionalPanel(
-        condition = "input.mode == 'largest'",
-        uiOutput("largest_lf"),
-        uiOutput("largest_p")
+        condition = "input.mode == 'top'",
+        uiOutput("top_lf"),
+        uiOutput("top_p")
       ),
       hr(),
       h4("Summary of selected features"),
@@ -60,17 +60,17 @@ ui <- fluidPage(
           h4("About"),
           p(HTML("This application implements an interactive volcano plot with <em>simultaneous</em> false discovery rate
                  (FDR) control. Simultaneous control means that the user can adjust the filters and the significance level
-                 alpha after seeing the data without losing FDR control.<br><br>This guarantee is achieved by using methods
-                 that rely on the e-closure principle. Specifically, the implementation includes the e-closure variants of
-                 three FDR control methods: the e-Benjamini Hochberg (e-BH) procedure, the Benjamini-Yekutieli (BY)
-                 procedure, and the Su procedure based on the FDR-linking theorem.")),
+                 alpha after seeing the data without compromising FDR control.<br><br>This guarantee is achieved by using
+                 methods that are constructed using the e-closure principle. Specifically, this application includes the
+                 e-closure variants of three FDR control methods: the e-Benjamini Hochberg (e-BH) procedure, the
+                 Benjamini-Yekutieli (BY) procedure, and the Su procedure based on the FDR-linking theorem.")),
           hr(),
           h4("How to use"),
           p(HTML("Features can be selected according to two filter modes. The <em>thresholds</em> mode selects features
-                 if they exceed the threshold value for both filters. The <em>largest values</em> mode selects features if
-                 they belong to the largest values for both filters.</br></br>Based on the filters, the summary panel
-                 returns how many features were selected and if the selected features control the FDR at significance level
-                 alpha according to each e-closure method."))
+                 if they exceed the threshold value for both filters. The <em>top values</em> mode selects features if
+                 their absolute fold changes rank among the largest <em>m</em> and the p-values rank among the smallest
+                 <em>n</em>.</br></br> Based on the filters, the summary panel returns how many features were selected and if
+                 the selected features control the FDR at significance level alpha according to each e-closure method."))
         )
       )
     )
@@ -102,19 +102,19 @@ server <- function(input, output, session) {
   max_p  <- reactive(ceiling(max(-log10(react_df()$pvalue), na.rm = TRUE)))
   
   output$threshold_lf <- renderUI({
-    sliderInput("t_lf", "Threshold for absolute fold change (log2 scale):",
+    sliderInput("thr_lf", "Threshold for absolute fold change (log2 scale):",
                 min = 0, max = max_lf(), value = max_lf() / 10, step = 0.05)
   })
   output$threshold_p <- renderUI({
-    sliderInput("t_p", "Threshold for p-value (-log10 scale):",
+    sliderInput("thr_p", "Threshold for p-value (-log10 scale):",
                 min = 0, max = max_p(), value = max_p() / 10, step = 0.5)
   })
-  output$largest_lf <- renderUI({
-    numericInput("l_lf", "Top m largest absolute fold changes:",
+  output$top_lf <- renderUI({
+    numericInput("top_lf", "Top m largest absolute fold changes:",
                  min = 0, max = nrow(react_df()), value = round(nrow(react_df()) / 10), step = 1)
   })
-  output$largest_p <- renderUI({
-    numericInput("l_p", "Top n smallest p-values:",
+  output$top_p <- renderUI({
+    numericInput("top_p", "Top n smallest p-values:",
                  min = 0, max = nrow(react_df()), value = round(nrow(react_df()) / 10), step = 1)
   })
   
@@ -123,13 +123,13 @@ server <- function(input, output, session) {
     r_df <- react_df()
     
     if (input$mode == "threshold") {
-      req(input$t_lf, input$t_p)
-      abs(r_df$log2FoldChange) >= input$t_lf & -log10(r_df$pvalue) >= input$t_p
+      req(input$thr_lf, input$thr_p)
+      abs(r_df$log2FoldChange) >= input$thr_lf & -log10(r_df$pvalue) >= input$thr_p
     } else {
-      req(input$l_lf, input$l_p)
+      req(input$top_lf, input$top_p)
       rank_lf <- rank(-abs(r_df$log2FoldChange), ties.method = "min")
       rank_p  <- rank(r_df$pvalue, ties.method = "min")
-      rank_lf <= input$l_lf & rank_p <= input$l_p
+      rank_lf <= input$top_lf & rank_p <= input$top_p
     }
   })
   
@@ -150,11 +150,11 @@ server <- function(input, output, session) {
     
     if (input$mode == "threshold") {
       p <- p +
-        geom_vline(xintercept = c(-input$t_lf, input$t_lf), linetype = "dashed", color = "black") +
-        geom_hline(yintercept = input$t_p, linetype = "dashed", color = "black")
+        geom_vline(xintercept = c(-input$thr_lf, input$thr_lf), linetype = "dashed", color = "black") +
+        geom_hline(yintercept = input$thr_p, linetype = "dashed", color = "black")
     } else {
-      lf_cutoff <- sort(abs(r_df$log2FoldChange), decreasing = TRUE)[input$l_lf]
-      p_cutoff <- sort(r_df$pvalue)[input$l_p]
+      lf_cutoff <- sort(abs(r_df$log2FoldChange), decreasing = TRUE)[input$top_lf]
+      p_cutoff <- sort(r_df$pvalue)[input$top_p]
       
       p <- p +
         geom_vline(xintercept = c(-lf_cutoff, lf_cutoff), linetype = "dashed", color = "black") +
