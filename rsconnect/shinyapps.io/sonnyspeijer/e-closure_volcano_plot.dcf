@@ -5,6 +5,6 @@ account: sonnyspeijer
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 17641821
-bundleId: 12323266
+bundleId: 12325277
 url: https://sonnyspeijer.shinyapps.io/e-closure_volcano_plot/
 version: 1
