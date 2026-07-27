@@ -19,6 +19,20 @@ calibrator_BY <- function(p, alpha) {
   ifelse(indicator, k / (alpha * ceil), 0)
 }
 
+# ---- Helper function for p-values of 0 or NA ----
+clean_input <- function(df) {
+  df <- df[!is.na(df$log2FoldChange) & !is.na(df$pvalue), , drop = FALSE]
+  
+  zeroes <- df$pvalue == 0
+  if (any(zeroes)) {
+    nonzeroes <- df$pvalue[df$pvalue > 0]
+    p_min <- min(nonzeroes)
+    df$pvalue[zeroes] <- p_min / 2
+  }
+  
+  df
+}
+
 # ---- Frontend ----
 ui <- fluidPage(
   titlePanel("e-Closure Volcano Plot"),
@@ -94,7 +108,7 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    react_df(input_df)
+    react_df(clean_input(input_df))
   })
   
   # ---- Interactive filter selection ----
